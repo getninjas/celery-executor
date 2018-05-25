@@ -6,7 +6,7 @@
 import pytest
 
 
-from celery_executor import celery_executor
+from celery_executor.executors import CeleryExecutor
 
 
 @pytest.fixture
