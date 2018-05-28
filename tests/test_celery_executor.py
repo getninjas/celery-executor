@@ -10,23 +10,19 @@ from celery_executor.executors import CeleryExecutor, SyncExecutor
 from concurrent.futures import ThreadPoolExecutor
 
 
-@pytest.fixture
-def response():
-    """Sample pytest fixture.
+@pytest.fixture(scope='session')
+def celery_config():
+    return {
+        'accept_content': ['json', 'pickle'],
 
-    See more at: http://doc.pytest.org/en/latest/fixture.html
-    """
-    # import requests
-    # return requests.get('https://github.com/audreyr/cookiecutter-pypackage')
-
-
-def test_content(response):
-    """Sample pytest test function with the pytest fixture as an argument."""
-    # from bs4 import BeautifulSoup
-    # assert 'GitHub' in BeautifulSoup(response.content).title.string
+        ## The exception inheritance do change if not using 'pickle' serializer
+        # See: https://github.com/celery/celery/issues/3586
+        # and https://github.com/celery/celery/pull/3592
+        'result_serializer': 'pickle',
+    }
 
 
-def test_excutors_parity():
+def test_excutors_parity(celery_session_worker):
     tp_exec = ThreadPoolExecutor()
     s_exec = SyncExecutor()
     cl_exec = CeleryExecutor()
@@ -36,12 +32,12 @@ def test_excutors_parity():
     map_results = list(sorted(map(str.upper, operations)))
     s_results = list(sorted(s_exec.map(str.upper, operations)))
     tp_results = list(sorted(tp_exec.map(str.upper, operations)))
-    # cl_results = list(sorted(cl_exec.map(str.upper, operations)))
+    cl_results = list(sorted(cl_exec.map(str.upper, operations)))
 
-    assert map_results == s_results == tp_results # == cl_results
+    assert map_results == s_results == tp_results == cl_results
 
 
-def test_excutor_exception_parity():
+def test_excutor_exception_parity(celery_session_worker):
     tp_exec = ThreadPoolExecutor()
     s_exec = SyncExecutor()
     cl_exec = CeleryExecutor()
@@ -57,5 +53,5 @@ def test_excutor_exception_parity():
     with pytest.raises(OSError):
         list(s_exec.map(open, operations))
 
-    # with pytest.raises(OSError):
-    #     list(cl_exec.map(open, operations))
+    with pytest.raises(OSError):
+        list(cl_exec.map(open, operations))
