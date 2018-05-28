@@ -4,7 +4,7 @@
 """Tests for `celery_executor` package."""
 import time
 from pprint import pformat
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 import pytest
 
@@ -103,6 +103,45 @@ def test_futures_parity(celery_session_worker):
 
     for tp_fut_state, cel_fut_state in states:
         assert tp_fut_state == cel_fut_state
+
+
+## Could not force a REVOKE on celery future! (or: I could not.)
+# def test_future_cancel_parity(celery_session_worker):
+#     tp_exec = ThreadPoolExecutor(max_workers=1)
+#     cel_exec = CeleryExecutor()
+
+#     tp_exec.submit(time.sleep, 10)  # Make the executor busy
+#     tp_future = tp_exec.submit(time.sleep, 10)
+#     tp_future.cancel()
+
+#     cel_exec.submit(time.sleep, 10)
+#     cel_future = cel_exec.submit(time.sleep, 10)
+#     cel_future.cancel()
+
+#     assert tp_future.cancelled() == cel_future.cancelled()
+#     assert tp_future.exception() == cel_future.exception()
+
+
+def test_future_exception_parity(celery_session_worker):
+    tp_exec = ThreadPoolExecutor(max_workers=1)
+    cel_exec = CeleryExecutor()
+
+    tp_future = tp_exec.submit(open, '/nonexistingfile')
+    cel_future = cel_exec.submit(open, '/nonexistingfile')
+
+    assert str(tp_future.exception()) == str(cel_future.exception())
+
+    tp_future = tp_exec.submit(time.sleep, 5)
+    cel_future = cel_exec.submit(time.sleep, 5)
+
+    with pytest.raises(TimeoutError) as tp_err:
+        tp_future.exception(1)
+
+    with pytest.raises(TimeoutError) as cel_err:
+        cel_future.exception(1)
+
+    assert tp_err.type == cel_err.type
+    assert str(tp_err.value) == str(cel_err.value)
 
 
 def _collect_state(future):
