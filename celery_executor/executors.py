@@ -1,7 +1,12 @@
 from concurrent.futures import Future, Executor, CancelledError, TimeoutError as FutureTimeoutError
-from collections.abc import Callable
 from threading import Lock
 import logging
+try:
+    from collections.abc import Callable
+except ImportError:
+    from collections import Callable    # Py27
+
+from future.utils import raise_with_traceback
 
 from celery import shared_task
 from celery.exceptions import TimeoutError as CeleryTimeoutError
@@ -55,7 +60,7 @@ class CeleryExecutorFuture(Future):
         try:
             return self._ar.wait(timeout=timeout)  # Will (re)raise exception if occurred
         except CeleryTimeoutError as err:
-            raise FutureTimeoutError(str(err)) from err
+            raise_with_traceback(FutureTimeoutError(str(err)))
     
     def exception(self, timeout=None):
         try:

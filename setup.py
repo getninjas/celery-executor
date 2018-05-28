@@ -13,7 +13,9 @@ with open('HISTORY.md') as history_file:
     history = history_file.read()
 
 requirements = [
+    'future>=0.16.0',
     'celery',
+    'futures; python_version <= "2.7"',
 ]
 
 setup_requirements = [
