@@ -57,14 +57,20 @@ class CeleryExecutorFuture(Future):
         if self._ar.state == 'REVOKED':
             raise CancelledError()
 
+        if timeout == 0:    # On Celery, 0 == None
+            timeout = 0.000000000001
+
         try:
             return self._ar.wait(timeout=timeout)  # Will (re)raise exception if occurred
         except CeleryTimeoutError as err:
-            raise_with_traceback(FutureTimeoutError(str(err)))
+            raise_with_traceback(FutureTimeoutError())
     
     def exception(self, timeout=None):
+        if timeout == 0:    # On Celery, 0 == None
+            timeout = 0.000000000001
+
         try:
-            self.result()   # Will trigger the update check
+            self.result(timeout=timeout)   # Will trigger the update check
         except (FutureTimeoutError, CancelledError):
             raise
         except BaseException as err:
