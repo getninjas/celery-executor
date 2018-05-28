@@ -104,7 +104,7 @@ class CeleryExecutor(Executor):
         if self._shutdown:
             raise RuntimeError('cannot schedule new futures after shutdown')
         self._predelay(fn, *args, **kwargs)
-        asyncresult = _celery_call.apply_async([fn] + args, kwargs,
+        asyncresult = _celery_call.apply_async((fn,) + args, kwargs,
                                                **self._applyasync_kwargs)
         self._postdelay(asyncresult)
         return CeleryExecutorFuture(asyncresult)
