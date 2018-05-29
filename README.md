@@ -15,7 +15,7 @@ Features
 --------
 
 The package provides a `CeleryExecutor` implementing the interface of
-`concurrent.futures.Executor`
+[`concurrent.futures.Executor`](https://docs.python.org/3/library/concurrent.futures.html#executor-objects)
 
 ```python
 >>> from celery_executor.executors import CeleryExecutor
