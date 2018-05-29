@@ -21,14 +21,14 @@ def _celery_call(func, *args, **kwargs):
 
 class CeleryExecutorFuture(Future):
     def __init__(self, asyncresult, *args, **kwargs):
-        super(__class__, self).__init__(*args, **kwargs)
+        super(CeleryExecutorFuture, self).__init__(*args, **kwargs)
         self._ar = asyncresult
         asyncresult.then(self._callback, on_error=self._error)
         self._ar.ready()   # Just trigger the state update check
     
     def __repr__(self):
         self._ar.ready()   # Triggers an update check
-        return super(__class__, self).__repr__()
+        return super(CeleryExecutorFuture, self).__repr__()
 
     def cancel(self):
         self._ar.revoke()
