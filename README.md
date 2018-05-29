@@ -27,6 +27,9 @@ The package provides a `CeleryExecutor` implementing the interface of
 'THREE'
 ```
 
+Beware that the `Executor.map()` interface can yield the results out of order,
+if later ones got to finish first.
+
 Credits
 -------
 
