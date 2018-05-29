@@ -68,16 +68,16 @@ def test_excutor_exception_parity(celery_session_worker):
 
     operations = ['/nonexistentfile', '/anothernonexistentfile']
 
-    with pytest.raises(OSError):
+    with pytest.raises(IOError):
         list(map(open, operations))
 
-    with pytest.raises(OSError):
+    with pytest.raises(IOError):
         list(tp_exec.map(open, operations))
 
-    with pytest.raises(OSError):
+    with pytest.raises(IOError):
         list(s_exec.map(open, operations))
 
-    with pytest.raises(OSError):
+    with pytest.raises(IOError):
         list(cl_exec.map(open, operations))
 
 
