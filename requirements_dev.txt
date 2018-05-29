@@ -2,7 +2,7 @@ celery~=4.1.1
 
 setuptools>=38.6.0
 pip==10.0.1
-bumpversion~=0.5
+bumpversion==0.5.3
 wheel>=0.31
 watchdog~=0.8
 flake8~=3.5
