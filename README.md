@@ -1,11 +1,10 @@
 Celery Executor
 ===============
 
-[![PyPI Version](https://img.shields.io/pypi/v/celery-executor.svg)](https://pypi.python.org/pypi/celery-executor)
-[![Travis CI](https://img.shields.io/travis/getninjas/celery-executor.svg)](https://travis-ci.org/getninjas/celery-executor)
+[![PyPI Version](https://img.shields.io/pypi/v/celery-executor.svg?fixit)](https://pypi.python.org/pypi/celery-executor)
+[![Travis CI](https://img.shields.io/travis/getninjas/celery-executor.svg?fixit)](https://travis-ci.org/getninjas/celery-executor)
 [![Read The Docs](https://readthedocs.org/projects/celery-executor/badge/?version=latest)](https://celery-executor.readthedocs.io/en/latest/?badge=latest)
 [![PyUP](https://pyup.io/repos/github/getninjas/celery-executor/shield.svg)](https://pyup.io/repos/github/getninjas/celery-executor/)
-[![HitCount](http://hits.dwyl.io/getninjas/celery-executor.svg)](http://hits.dwyl.io/getninjas/celery-executor)
 
 A `concurrent.futures.Executor` implementation using Celery as backend
 
