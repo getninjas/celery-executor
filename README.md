@@ -1,8 +1,8 @@
 Celery Executor
 ===============
 
-[![PyPI Version](https://img.shields.io/pypi/v/celery-executor.svg?fixit)](https://pypi.python.org/pypi/celery-executor)
-[![Travis CI](https://img.shields.io/travis/getninjas/celery-executor.svg?fixit)](https://travis-ci.org/getninjas/celery-executor)
+[![PyPI version fury.io](https://badge.fury.io/py/celery-executor.svg)](https://pypi.python.org/pypi/celery-executor/)
+[![Build Status](https://travis-ci.org/getninjas/celery-executor.svg?branch=master)](https://travis-ci.org/getninjas/celery-executor)
 [![Read The Docs](https://readthedocs.org/projects/celery-executor/badge/?version=latest)](https://celery-executor.readthedocs.io/en/latest/?badge=latest)
 [![PyUP](https://pyup.io/repos/github/getninjas/celery-executor/shield.svg)](https://pyup.io/repos/github/getninjas/celery-executor/)
 
