@@ -3,10 +3,27 @@
 
 """Tests for `celery_executor` package."""
 import time
+import six
 from pprint import pformat
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 import pytest
+
+if six.PY2:
+    # Tests will work only with dill + pure-python pickle
+    import dill
+    import pickle
+    import kombu.serialization as _serialization
+
+    from io import BytesIO
+    def pickle_loads(s, load=pickle.load):
+        # used to support buffer objects
+        return load(BytesIO(s))
+
+    _serialization.pickle = pickle
+    _serialization.pickle_load = pickle.load
+    _serialization.unpickle = pickle_loads
+    _serialization.register_pickle()
 
 from celery_executor.executors import CeleryExecutor, SyncExecutor
 
