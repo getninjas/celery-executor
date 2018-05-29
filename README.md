@@ -14,7 +14,18 @@ A `concurrent.futures.Executor` implementation using Celery as backend
 Features
 --------
 
-* TODO
+The package provides a `CeleryExecutor` implementing the interface of
+`concurrent.futures.Executor`
+
+```python
+>>> from celery_executor.executors import CeleryExecutor
+>>> executor = CeleryExecutor()
+>>> for result in executor.map(str.upper, ['one', 'two', 'three']):
+...     print(result)
+'ONE'
+'TWO'
+'THREE'
+```
 
 Credits
 -------
