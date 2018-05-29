@@ -1,8 +1,8 @@
-include AUTHORS.{rst,md}
-include CONTRIBUTING.{rst,md}
-include HISTORY.{rst,md}
+include AUTHORS.rst
+include CONTRIBUTING.rst
+include HISTORY.md
 include LICENSE
-include README.{rst,md}
+include README.md
 
 recursive-include tests *
 recursive-exclude * __pycache__

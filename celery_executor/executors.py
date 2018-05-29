@@ -1,7 +1,12 @@
 from concurrent.futures import Future, Executor, CancelledError, TimeoutError as FutureTimeoutError
-from collections.abc import Callable
 from threading import Lock
 import logging
+try:
+    from collections.abc import Callable
+except ImportError:
+    from collections import Callable    # Py27
+
+from future.utils import raise_with_traceback
 
 from celery import shared_task
 from celery.exceptions import TimeoutError as CeleryTimeoutError
@@ -16,14 +21,14 @@ def _celery_call(func, *args, **kwargs):
 
 class CeleryExecutorFuture(Future):
     def __init__(self, asyncresult, *args, **kwargs):
-        super(__class__, self).__init__(*args, **kwargs)
+        super(CeleryExecutorFuture, self).__init__(*args, **kwargs)
         self._ar = asyncresult
         asyncresult.then(self._callback, on_error=self._error)
         self._ar.ready()   # Just trigger the state update check
     
     def __repr__(self):
         self._ar.ready()   # Triggers an update check
-        return super(__class__, self).__repr__()
+        return super(CeleryExecutorFuture, self).__repr__()
 
     def cancel(self):
         self._ar.revoke()
@@ -52,14 +57,20 @@ class CeleryExecutorFuture(Future):
         if self._ar.state == 'REVOKED':
             raise CancelledError()
 
+        if timeout == 0:    # On Celery, 0 == None
+            timeout = 0.000000000001
+
         try:
             return self._ar.wait(timeout=timeout)  # Will (re)raise exception if occurred
         except CeleryTimeoutError as err:
-            raise FutureTimeoutError(str(err)) from err
+            raise_with_traceback(FutureTimeoutError())
     
     def exception(self, timeout=None):
+        if timeout == 0:    # On Celery, 0 == None
+            timeout = 0.000000000001
+
         try:
-            self.result()   # Will trigger the update check
+            self.result(timeout=timeout)   # Will trigger the update check
         except (FutureTimeoutError, CancelledError):
             raise
         except BaseException as err:
@@ -99,7 +110,7 @@ class CeleryExecutor(Executor):
         if self._shutdown:
             raise RuntimeError('cannot schedule new futures after shutdown')
         self._predelay(fn, *args, **kwargs)
-        asyncresult = _celery_call.apply_async([fn] + args, kwargs,
+        asyncresult = _celery_call.apply_async((fn,) + args, kwargs,
                                                **self._applyasync_kwargs)
         self._postdelay(asyncresult)
         return CeleryExecutorFuture(asyncresult)
