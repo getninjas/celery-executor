@@ -25,7 +25,7 @@ class CeleryExecutorFuture(Future):
         self._ar = asyncresult
         asyncresult.then(self._callback, on_error=self._error)
         self._ar.ready()   # Just trigger the state update check
-    
+
     def __repr__(self):
         self._ar.ready()   # Triggers an update check
         return super(CeleryExecutorFuture, self).__repr__()
@@ -46,7 +46,7 @@ class CeleryExecutorFuture(Future):
     def running(self):
         self._ar.ready()   # Triggers an update check
         return bool(self._ar.state in ['STARTED', 'RETRY'])
-    
+
     def done(self):
         self._ar.ready()   # Triggers an update check
         return bool(self._ar.state in ['SUCCESS', 'REVOKED', 'FAILURE'])
@@ -64,7 +64,7 @@ class CeleryExecutorFuture(Future):
             return self._ar.wait(timeout=timeout)  # Will (re)raise exception if occurred
         except CeleryTimeoutError as err:
             raise_with_traceback(FutureTimeoutError())
-    
+
     def exception(self, timeout=None):
         if timeout == 0:    # On Celery, 0 == None
             timeout = 0.000000000001
@@ -76,20 +76,20 @@ class CeleryExecutorFuture(Future):
         except BaseException as err:
             return err  # Got the exception raised into the Future call
         return None  # No exception raised
-    
+
     def _callback(self, asyncresult):
         logger.debug('Celery task "%s" resolved.', asyncresult.id)
         self.set_result(asyncresult.result)
-    
+
     def _error(self, asyncresult):
         logger.debug('Celery task "%s" resolved with error.', asyncresult.id)
         self.set_exception(asyncresult.result)
 
-            
+
 class CeleryExecutor(Executor):
     def __init__(self,
-                    predelay=lambda fn,*args,**kwargs:None,
-                    postdelay=lambda asyncresult:None,
+                    predelay=None,
+                    postdelay=None,
                     applyasync_kwargs=None,
                 ):
         """
@@ -99,20 +99,22 @@ class CeleryExecutor(Executor):
         Args:
             predelay: Will trigger before the `.apply_async` internal call
             postdelay: Will trigger before the `.apply_async` internal call
-            applyasync_kwargs: Options passed to the `.apply_async()` call 
+            applyasync_kwargs: Options passed to the `.apply_async()` call
         """
         self._predelay = predelay
         self._postdelay = postdelay
         self._applyasync_kwargs = applyasync_kwargs or {}
         self._shutdown = False
-    
+
     def submit(self, fn, *args, **kwargs):
         if self._shutdown:
             raise RuntimeError('cannot schedule new futures after shutdown')
-        self._predelay(fn, *args, **kwargs)
+        if self._predelay:
+            self._predelay(fn, *args, **kwargs)
         asyncresult = _celery_call.apply_async((fn,) + args, kwargs,
                                                **self._applyasync_kwargs)
-        self._postdelay(asyncresult)
+        if self._postdelay:
+            self._postdelay(asyncresult)
         return CeleryExecutorFuture(asyncresult)
 
     def shutdown(self, wait=True):
