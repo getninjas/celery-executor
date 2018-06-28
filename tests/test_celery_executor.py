@@ -74,10 +74,9 @@ def test_executors_shutdown_parity(executor_class, celery_session_worker):
         executor.submit(pow, 2, 5)
 
 
-def test_excutor_exception_parity(celery_session_worker):
-    tp_exec = ThreadPoolExecutor()
-    s_exec = SyncExecutor()
-    cl_exec = CeleryExecutor()
+@pytest.mark.parametrize("executor_class", [ThreadPoolExecutor, SyncExecutor, CeleryExecutor])
+def test_executor_exception_parity(executor_class, celery_session_worker):
+    executor = executor_class()
 
     operations = ['/nonexistentfile', '/anothernonexistentfile']
 
@@ -85,17 +84,9 @@ def test_excutor_exception_parity(celery_session_worker):
         list(map(open, operations))
 
     with pytest.raises(IOError):
-        list(tp_exec.map(open, operations))
+        list(executor.map(open, operations))
 
-    with pytest.raises(IOError):
-        list(s_exec.map(open, operations))
-
-    with pytest.raises(IOError):
-        list(cl_exec.map(open, operations))
-
-    tp_exec.shutdown(wait=True)
-    s_exec.shutdown(wait=True)
-    cl_exec.shutdown(wait=True)
+    executor.shutdown(wait=True)
 
 
 def test_futures_parity(celery_session_worker):
