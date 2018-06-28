@@ -60,6 +60,19 @@ def test_excutors_parity(celery_session_worker):
 
     assert map_results == s_results == tp_results == cl_results
 
+    tp_exec.shutdown(wait=True)
+    s_exec.shutdown(wait=True)
+    cl_exec.shutdown(wait=True)
+
+
+@pytest.mark.parametrize("executor_class", [ThreadPoolExecutor, SyncExecutor, CeleryExecutor])
+def test_executors_shutdown_parity(executor_class, celery_session_worker):
+    executor = executor_class()
+
+    executor.shutdown()
+    with pytest.raises(RuntimeError):
+        executor.submit(pow, 2, 5)
+
 
 def test_excutor_exception_parity(celery_session_worker):
     tp_exec = ThreadPoolExecutor()
@@ -79,6 +92,10 @@ def test_excutor_exception_parity(celery_session_worker):
 
     with pytest.raises(IOError):
         list(cl_exec.map(open, operations))
+
+    tp_exec.shutdown(wait=True)
+    s_exec.shutdown(wait=True)
+    cl_exec.shutdown(wait=True)
 
 
 def test_futures_parity(celery_session_worker):
@@ -121,6 +138,9 @@ def test_futures_parity(celery_session_worker):
     for tp_fut_state, cel_fut_state in states:
         assert tp_fut_state == cel_fut_state
 
+    tp_exec.shutdown(wait=True)
+    cel_exec.shutdown(wait=True)
+
 
 ## Could not force a REVOKE on celery future! (or: I could not.)
 # def test_future_cancel_parity(celery_session_worker):
@@ -159,6 +179,9 @@ def test_future_exception_parity(celery_session_worker):
 
     assert tp_err.type == cel_err.type
     assert str(tp_err.value) == str(cel_err.value)
+
+    tp_exec.shutdown(wait=True)
+    cel_exec.shutdown(wait=True)
 
 
 def _collect_state(future):

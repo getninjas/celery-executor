@@ -1,5 +1,6 @@
-from concurrent.futures import Future, Executor, CancelledError, TimeoutError as FutureTimeoutError
+from concurrent.futures import Future, Executor, CancelledError, TimeoutError as FutureTimeoutError, as_completed
 from threading import Lock
+from weakref import WeakSet
 import logging
 try:
     from collections.abc import Callable
@@ -105,21 +106,29 @@ class CeleryExecutor(Executor):
         self._postdelay = postdelay
         self._applyasync_kwargs = applyasync_kwargs or {}
         self._shutdown = False
+        self._shutdown_lock = Lock()
+        self._futures = WeakSet()
 
     def submit(self, fn, *args, **kwargs):
-        if self._shutdown:
-            raise RuntimeError('cannot schedule new futures after shutdown')
-        if self._predelay:
-            self._predelay(fn, *args, **kwargs)
-        asyncresult = _celery_call.apply_async((fn,) + args, kwargs,
-                                               **self._applyasync_kwargs)
-        if self._postdelay:
-            self._postdelay(asyncresult)
-        return CeleryExecutorFuture(asyncresult)
+        with self._shutdown_lock:
+            if self._shutdown:
+                raise RuntimeError('cannot schedule new futures after shutdown')
+            if self._predelay:
+                self._predelay(fn, *args, **kwargs)
+            asyncresult = _celery_call.apply_async((fn,) + args, kwargs,
+                                                **self._applyasync_kwargs)
+            if self._postdelay:
+                self._postdelay(asyncresult)
+
+            future = CeleryExecutorFuture(asyncresult)
+            self._futures.add(future)
+            return future
 
     def shutdown(self, wait=True):
-        self._shutdown = True
-        # It is faked for now.
+        with self._shutdown_lock:
+            self._shutdown = True
+            for fut in self._futures:
+                fut.cancel()
 
 
 class SyncExecutor(Executor):
