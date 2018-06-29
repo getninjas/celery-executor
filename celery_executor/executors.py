@@ -102,6 +102,7 @@ class CeleryExecutor(Executor):
             self._shutdown = True
             for fut in self._futures:
                 fut.cancel()
+
         if wait:
             for fut in as_completed(self._futures):
                 pass
@@ -110,6 +111,7 @@ class CeleryExecutor(Executor):
             try:
                 self._monitor.join()
             except RuntimeError:
+                # Thread never started. Cannot join
                 pass
 
 
