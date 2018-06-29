@@ -1,6 +1,7 @@
 from concurrent.futures import Future, Executor, as_completed
 from threading import Lock, Thread
 import logging
+import time
 
 from celery import shared_task
 
@@ -39,6 +40,7 @@ class CeleryExecutor(Executor):
 
     def _update_futures(self):
         while True:
+            time.sleep(0.1)  # Not-so-busy loop
             if self._monitor_stopping:
                 return
 
