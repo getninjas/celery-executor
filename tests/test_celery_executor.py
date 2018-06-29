@@ -5,7 +5,7 @@
 import time
 import six
 from pprint import pformat
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from concurrent.futures import ThreadPoolExecutor, TimeoutError, CancelledError
 
 import pytest
 
@@ -173,6 +173,25 @@ def test_future_exception_parity(celery_session_worker):
 
     tp_exec.shutdown(wait=True)
     cel_exec.shutdown(wait=True)
+
+
+@pytest.mark.parametrize("executor_class", [ThreadPoolExecutor, SyncExecutor, CeleryExecutor])
+def test_hang_issue12364(executor_class, celery_session_worker):
+    executor = executor_class()
+    futures = [executor.submit(time.sleep, 0.1) for _ in range(50)]
+    executor.shutdown()
+    for f in futures:
+        try:
+            f.result()
+        except CancelledError:
+            pass
+
+
+@pytest.mark.parametrize("executor_class", [ThreadPoolExecutor, SyncExecutor, CeleryExecutor])
+def test_del_shutdown(executor_class, celery_session_worker):
+    executor = executor_class()
+    executor.map(abs, range(-5, 5))
+    del executor
 
 
 def _collect_state(future):
