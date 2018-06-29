@@ -34,9 +34,10 @@ class CeleryExecutor(Executor):
         self._shutdown = False
         self._shutdown_lock = Lock()
         self._futures = {}
-        self._monitor = Thread(target=self._update_futures, daemon=True)
         self._monitor_started = False
         self._monitor_stopping = False
+        self._monitor = Thread(target=self._update_futures)
+        self._monitor.setDaemon(True)
 
     def _update_futures(self):
         while True:
