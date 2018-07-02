@@ -3,8 +3,9 @@ python:
 - 2.7
 - 3.6
 - 3.5
-install: pip install -U tox-travis
+install: pip install -U tox-travis codecov
 script: tox
+after_success: codecov
 deploy:
   provider: pypi
   distributions: sdist bdist_wheel
