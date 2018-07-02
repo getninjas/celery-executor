@@ -36,7 +36,7 @@ class CeleryExecutor(Executor):
         self._update_delay = update_delay
         self._shutdown = False
         self._shutdown_lock = Lock()
-        self._futures = {}
+        self._futures = set()
         self._monitor_started = False
         self._monitor_stopping = False
         self._monitor = Thread(target=self._update_futures)
@@ -48,12 +48,13 @@ class CeleryExecutor(Executor):
             if self._monitor_stopping:
                 return
 
-            for fut, ar in tuple(self._futures.items()):
+            for fut in tuple(self._futures):
                 if fut._state in ('FINISHED', 'CANCELLED_AND_NOTIFIED'):
                     # This Future is set and done. Nothing else to do.
-                    self._futures.pop(fut)
+                    self._futures.remove(fut)
                     continue
 
+                ar = fut._ar
                 ar.ready()   # Just trigger the AsyncResult state update check
 
                 if ar.state == 'REVOKED':
@@ -100,7 +101,7 @@ class CeleryExecutor(Executor):
 
             future = Future()
             future._ar = asyncresult
-            self._futures[future] = asyncresult
+            self._futures.add(future)
             return future
 
     def shutdown(self, wait=True):
