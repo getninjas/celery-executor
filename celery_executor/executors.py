@@ -13,6 +13,46 @@ def _celery_call(func, *args, **kwargs):
     return func(*args, **kwargs)
 
 
+class CeleryFuture(Future):
+    def __init__(self, asyncresult):
+        self._ar = asyncresult
+        super(CeleryFuture, self).__init__()
+
+    def cancel(self):
+        """Cancel the future if possible.
+        Returns True if the future was cancelled, False otherwise. A future
+        cannot be cancelled if it is running or has already completed.
+        """
+        ## Note that this method does not call super()
+        # Its because the place where ._ar.revoke() should be called is
+        # in the middle of the Future.cancel() code.
+        # Solved by copying and adapting from stdlib
+        # See: https://github.com/python/cpython/blob/087570af6d5d39b51bdd5e660a53903960e58678/Lib/concurrent/futures/_base.py#L352-L369
+        with self._condition:
+            if self._state in ['RUNNING', 'FINISHED']:
+                return False
+
+            if self._state in ['CANCELLED', 'CANCELLED_AND_NOTIFIED']:
+                return True
+
+            # Not running and not canceled. May be possible to cancel!
+            self._ar.ready()  # Triggers an update check
+            if self._ar.state != 'REVOKED':
+                self._ar.revoke()
+                self._ar.ready()
+
+            # Celery task should be REVOKED now. Otherwise may be not possible revoke it.
+            if self._ar.state == 'REVOKED':
+                self._state = 'CANCELLED'
+                self._condition.notify_all()
+            else:
+                return False
+
+        # Was .revoke()d with success!
+        self._invoke_callbacks()
+        return True
+
+
 class CeleryExecutor(Executor):
     def __init__(self,
                     predelay=None,
@@ -98,8 +138,7 @@ class CeleryExecutor(Executor):
             if self._postdelay:
                 self._postdelay(asyncresult)
 
-            future = Future()
-            future._ar = asyncresult
+            future = CeleryFuture(asyncresult)
             self._futures[future] = asyncresult
             return future
 
