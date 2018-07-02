@@ -1,4 +1,5 @@
 from concurrent.futures import Future, Executor, as_completed
+from concurrent.futures._base import RUNNING, FINISHED, CANCELLED, CANCELLED_AND_NOTIFIED
 from threading import Lock, Thread
 import logging
 import time
@@ -24,7 +25,7 @@ class CeleryExecutorFuture(Future):
         cannot be cancelled if it is running or has already completed.
         """
         with self._condition:
-            if self._state in ['RUNNING', 'FINISHED', 'CANCELLED', 'CANCELLED_AND_NOTIFIED']:
+            if self._state in [RUNNING, FINISHED, CANCELLED, CANCELLED_AND_NOTIFIED]:
                 return super(CeleryExecutorFuture, self).cancel()
 
             # Not running and not canceled. May be possible to cancel!
@@ -39,10 +40,10 @@ class CeleryExecutorFuture(Future):
                 assert result == True, 'Please open an issue on Github: Upstream implementation changed?'
             else:
                 # Is not running nor revoked nor finished :/
-                # The revoke() had not produced effect, but Task is not running yet!
-                # Setting as RUNNING to inibit super() to cancel the Future, then put back.
+                # The revoke() had not produced effect: Task is probable not on a worker, then not revoke-able.
+                # Setting as RUNNING to inibit super() to cancel the Future, then putting back.
                 initial_state = self._state
-                self._state = 'RUNNING'
+                self._state = RUNNING
                 result = super(CeleryExecutorFuture, self).cancel()
                 assert result == False, 'Please open an issue on Github: Upstream implementation changed?'
                 self._state = initial_state
@@ -86,7 +87,7 @@ class CeleryExecutor(Executor):
                 return
 
             for fut in tuple(self._futures):
-                if fut._state in ('FINISHED', 'CANCELLED_AND_NOTIFIED'):
+                if fut._state in (FINISHED, CANCELLED_AND_NOTIFIED):
                     # This Future is set and done. Nothing else to do.
                     self._futures.remove(fut)
                     continue
@@ -99,23 +100,23 @@ class CeleryExecutor(Executor):
                     if not fut.cancelled():
                         assert fut.cancel(), 'Future was not running but failed to be cancelled'
                         fut.set_running_or_notify_cancel()
-                    # Future is 'CANCELLED'
+                    # Future is CANCELLED
 
                 elif ar.state in ('RUNNING', 'RETRY'):
                     logger.debug('Celery task "%s" running.', ar.id)
                     if not fut.running():
                         fut.set_running_or_notify_cancel()
-                    # Future is 'RUNNING'
+                    # Future is RUNNING
 
                 elif ar.state == 'SUCCESS':
                     logger.debug('Celery task "%s" resolved.', ar.id)
                     fut.set_result(ar.get())
-                    # Future is 'FINISHED'
+                    # Future is FINISHED
 
                 elif ar.state == 'FAILURE':
                     logger.debug('Celery task "%s" resolved with error.', ar.id)
                     fut.set_exception(ar.result)
-                    # Future is 'FINISHED'
+                    # Future is FINISHED
 
                 # else:  # ar.state in [RECEIVED, STARTED, REJECTED, RETRY]
                 #     pass
