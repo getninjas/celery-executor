@@ -23,11 +23,6 @@ class CeleryExecutorFuture(Future):
         Returns True if the future was cancelled, False otherwise. A future
         cannot be cancelled if it is running or has already completed.
         """
-        ## Note that this method does not call super()
-        # Its because the place where ._ar.revoke() should be called is
-        # in the middle of the Future.cancel() code.
-        # Solved by copying and adapting from stdlib
-        # See: https://github.com/python/cpython/blob/087570af6d5d39b51bdd5e660a53903960e58678/Lib/concurrent/futures/_base.py#L352-L369
         with self._condition:
             if self._state in ['RUNNING', 'FINISHED', 'CANCELLED', 'CANCELLED_AND_NOTIFIED']:
                 return super(CeleryExecutorFuture, self).cancel()
