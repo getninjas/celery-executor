@@ -13,10 +13,10 @@ def _celery_call(func, *args, **kwargs):
     return func(*args, **kwargs)
 
 
-class CeleryFuture(Future):
+class CeleryExecutorFuture(Future):
     def __init__(self, asyncresult):
         self._ar = asyncresult
-        super(CeleryFuture, self).__init__()
+        super(CeleryExecutorFuture, self).__init__()
 
     def cancel(self):
         """Cancel the future if possible.
@@ -138,7 +138,7 @@ class CeleryExecutor(Executor):
             if self._postdelay:
                 self._postdelay(asyncresult)
 
-            future = CeleryFuture(asyncresult)
+            future = CeleryExecutorFuture(asyncresult)
             self._futures[future] = asyncresult
             return future
 
