@@ -1,4 +1,5 @@
 from concurrent.futures import Future, Executor, as_completed
+from concurrent.futures._base import RUNNING, FINISHED, CANCELLED, CANCELLED_AND_NOTIFIED
 from threading import Lock, Thread
 import logging
 import time
@@ -11,6 +12,43 @@ logger = logging.getLogger(__name__)
 @shared_task(serializer='pickle')
 def _celery_call(func, *args, **kwargs):
     return func(*args, **kwargs)
+
+
+class CeleryExecutorFuture(Future):
+    def __init__(self, asyncresult):
+        self._ar = asyncresult
+        super(CeleryExecutorFuture, self).__init__()
+
+    def cancel(self):
+        """Cancel the future if possible.
+        Returns True if the future was cancelled, False otherwise. A future
+        cannot be cancelled if it is running or has already completed.
+        """
+        with self._condition:
+            if self._state in [RUNNING, FINISHED, CANCELLED, CANCELLED_AND_NOTIFIED]:
+                return super(CeleryExecutorFuture, self).cancel()
+
+            # Not running and not canceled. May be possible to cancel!
+            self._ar.ready()  # Triggers an update check
+            if self._ar.state != 'REVOKED':
+                self._ar.revoke()
+                self._ar.ready()
+
+            # Celery task should be REVOKED now. Otherwise may be not possible revoke it.
+            if self._ar.state == 'REVOKED':
+                result = super(CeleryExecutorFuture, self).cancel()
+                assert result == True, 'Please open an issue on Github: Upstream implementation changed?'
+            else:
+                # Is not running nor revoked nor finished :/
+                # The revoke() had not produced effect: Task is probable not on a worker, then not revoke-able.
+                # Setting as RUNNING to inibit super() to cancel the Future, then putting back.
+                initial_state = self._state
+                self._state = RUNNING
+                result = super(CeleryExecutorFuture, self).cancel()
+                assert result == False, 'Please open an issue on Github: Upstream implementation changed?'
+                self._state = initial_state
+
+            return result
 
 
 class CeleryExecutor(Executor):
@@ -49,7 +87,7 @@ class CeleryExecutor(Executor):
                 return
 
             for fut in tuple(self._futures):
-                if fut._state in ('FINISHED', 'CANCELLED_AND_NOTIFIED'):
+                if fut._state in (FINISHED, CANCELLED_AND_NOTIFIED):
                     # This Future is set and done. Nothing else to do.
                     self._futures.remove(fut)
                     continue
@@ -62,23 +100,23 @@ class CeleryExecutor(Executor):
                     if not fut.cancelled():
                         assert fut.cancel(), 'Future was not running but failed to be cancelled'
                         fut.set_running_or_notify_cancel()
-                    # Future is 'CANCELLED'
+                    # Future is CANCELLED
 
                 elif ar.state in ('RUNNING', 'RETRY'):
                     logger.debug('Celery task "%s" running.', ar.id)
                     if not fut.running():
                         fut.set_running_or_notify_cancel()
-                    # Future is 'RUNNING'
+                    # Future is RUNNING
 
                 elif ar.state == 'SUCCESS':
                     logger.debug('Celery task "%s" resolved.', ar.id)
                     fut.set_result(ar.get())
-                    # Future is 'FINISHED'
+                    # Future is FINISHED
 
                 elif ar.state == 'FAILURE':
                     logger.debug('Celery task "%s" resolved with error.', ar.id)
                     fut.set_exception(ar.result)
-                    # Future is 'FINISHED'
+                    # Future is FINISHED
 
                 # else:  # ar.state in [RECEIVED, STARTED, REJECTED, RETRY]
                 #     pass
@@ -99,8 +137,7 @@ class CeleryExecutor(Executor):
             if self._postdelay:
                 self._postdelay(asyncresult)
 
-            future = Future()
-            future._ar = asyncresult
+            future = CeleryExecutorFuture(asyncresult)
             self._futures.add(future)
             return future
 
