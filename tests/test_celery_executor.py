@@ -5,7 +5,7 @@
 import time
 import six
 from pprint import pformat
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from concurrent.futures import ThreadPoolExecutor, TimeoutError, CancelledError
 
 import pytest
 
@@ -60,11 +60,23 @@ def test_excutors_parity(celery_session_worker):
 
     assert map_results == s_results == tp_results == cl_results
 
+    tp_exec.shutdown(wait=True)
+    s_exec.shutdown(wait=True)
+    cl_exec.shutdown(wait=True)
 
-def test_excutor_exception_parity(celery_session_worker):
-    tp_exec = ThreadPoolExecutor()
-    s_exec = SyncExecutor()
-    cl_exec = CeleryExecutor()
+
+@pytest.mark.parametrize("executor_class", [ThreadPoolExecutor, SyncExecutor, CeleryExecutor])
+def test_executors_shutdown_parity(executor_class, celery_session_worker):
+    executor = executor_class()
+
+    executor.shutdown()
+    with pytest.raises(RuntimeError):
+        executor.submit(pow, 2, 5)
+
+
+@pytest.mark.parametrize("executor_class", [ThreadPoolExecutor, SyncExecutor, CeleryExecutor])
+def test_executor_exception_parity(executor_class, celery_session_worker):
+    executor = executor_class()
 
     operations = ['/nonexistentfile', '/anothernonexistentfile']
 
@@ -72,13 +84,9 @@ def test_excutor_exception_parity(celery_session_worker):
         list(map(open, operations))
 
     with pytest.raises(IOError):
-        list(tp_exec.map(open, operations))
+        list(executor.map(open, operations))
 
-    with pytest.raises(IOError):
-        list(s_exec.map(open, operations))
-
-    with pytest.raises(IOError):
-        list(cl_exec.map(open, operations))
+    executor.shutdown(wait=True)
 
 
 def test_futures_parity(celery_session_worker):
@@ -121,6 +129,9 @@ def test_futures_parity(celery_session_worker):
     for tp_fut_state, cel_fut_state in states:
         assert tp_fut_state == cel_fut_state
 
+    tp_exec.shutdown(wait=True)
+    cel_exec.shutdown(wait=True)
+
 
 ## Could not force a REVOKE on celery future! (or: I could not.)
 # def test_future_cancel_parity(celery_session_worker):
@@ -159,6 +170,28 @@ def test_future_exception_parity(celery_session_worker):
 
     assert tp_err.type == cel_err.type
     assert str(tp_err.value) == str(cel_err.value)
+
+    tp_exec.shutdown(wait=True)
+    cel_exec.shutdown(wait=True)
+
+
+@pytest.mark.parametrize("executor_class", [ThreadPoolExecutor, SyncExecutor, CeleryExecutor])
+def test_hang_issue12364(executor_class, celery_session_worker):
+    executor = executor_class()
+    futures = [executor.submit(time.sleep, 0.1) for _ in range(50)]
+    executor.shutdown()
+    for f in futures:
+        try:
+            f.result()
+        except CancelledError:
+            pass
+
+
+@pytest.mark.parametrize("executor_class", [ThreadPoolExecutor, SyncExecutor, CeleryExecutor])
+def test_del_shutdown(executor_class, celery_session_worker):
+    executor = executor_class()
+    executor.map(abs, range(-5, 5))
+    del executor
 
 
 def _collect_state(future):
