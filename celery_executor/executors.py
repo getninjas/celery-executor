@@ -29,11 +29,8 @@ class CeleryExecutorFuture(Future):
         # Solved by copying and adapting from stdlib
         # See: https://github.com/python/cpython/blob/087570af6d5d39b51bdd5e660a53903960e58678/Lib/concurrent/futures/_base.py#L352-L369
         with self._condition:
-            if self._state in ['RUNNING', 'FINISHED']:
-                return False
-
-            if self._state in ['CANCELLED', 'CANCELLED_AND_NOTIFIED']:
-                return True
+            if self._state in ['RUNNING', 'FINISHED', 'CANCELLED', 'CANCELLED_AND_NOTIFIED']:
+                return super(CeleryExecutorFuture, self).cancel()
 
             # Not running and not canceled. May be possible to cancel!
             self._ar.ready()  # Triggers an update check
@@ -43,14 +40,19 @@ class CeleryExecutorFuture(Future):
 
             # Celery task should be REVOKED now. Otherwise may be not possible revoke it.
             if self._ar.state == 'REVOKED':
-                self._state = 'CANCELLED'
-                self._condition.notify_all()
+                result = super(CeleryExecutorFuture, self).cancel()
+                assert result == True, 'Please open an issue on Github: Upstream implementation changed?'
             else:
-                return False
+                # Is not running nor revoked nor finished :/
+                # The revoke() had not produced effect, but Task is not running yet!
+                # Setting as RUNNING to inibit super() to cancel the Future, then put back.
+                initial_state = self._state
+                self._state = 'RUNNING'
+                result = super(CeleryExecutorFuture, self).cancel()
+                assert result == False, 'Please open an issue on Github: Upstream implementation changed?'
+                self._state = initial_state
 
-        # Was .revoke()d with success!
-        self._invoke_callbacks()
-        return True
+            return result
 
 
 class CeleryExecutor(Executor):
