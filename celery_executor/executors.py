@@ -18,6 +18,7 @@ class CeleryExecutor(Executor):
                     predelay=None,
                     postdelay=None,
                     applyasync_kwargs=None,
+                    update_delay=0.1,
                 ):
         """
         Executor implementation using a celery caller `_celery_call` wrapper
@@ -27,10 +28,12 @@ class CeleryExecutor(Executor):
             predelay: Will trigger before the `.apply_async` internal call
             postdelay: Will trigger before the `.apply_async` internal call
             applyasync_kwargs: Options passed to the `.apply_async()` call
+            update_delay: Delay time between checks for Future state changes
         """
         self._predelay = predelay
         self._postdelay = postdelay
         self._applyasync_kwargs = applyasync_kwargs or {}
+        self._update_delay = update_delay
         self._shutdown = False
         self._shutdown_lock = Lock()
         self._futures = {}
@@ -41,7 +44,7 @@ class CeleryExecutor(Executor):
 
     def _update_futures(self):
         while True:
-            time.sleep(0.1)  # Not-so-busy loop
+            time.sleep(self._update_delay)  # Not-so-busy loop
             if self._monitor_stopping:
                 return
 
