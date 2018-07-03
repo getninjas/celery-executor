@@ -19,6 +19,10 @@ class CeleryExecutorFuture(Future):
         self._ar = asyncresult
         super(CeleryExecutorFuture, self).__init__()
 
+    def __del__(self):
+        self._ar.forget()
+        del self._ar
+
     def cancel(self):
         """Cancel the future if possible.
         Returns True if the future was cancelled, False otherwise. A future
