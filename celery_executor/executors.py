@@ -114,7 +114,7 @@ class CeleryExecutor(Executor):
 
                 elif ar.state == 'SUCCESS':
                     logger.debug('Celery task "%s" resolved.', ar.id)
-                    fut.set_result(ar.get())
+                    fut.set_result(ar.get(disable_sync_subtasks=False))
                     # Future is FINISHED
 
                 elif ar.state == 'FAILURE':
