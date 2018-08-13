@@ -9,9 +9,13 @@ from celery import shared_task
 logger = logging.getLogger(__name__)
 
 
-@shared_task(serializer='pickle')
-def _celery_call(func, *args, **kwargs):
-    return func(*args, **kwargs)
+@shared_task(bind=True, serializer='pickle', track_started=True, retry_backoff=True)
+def _celery_call(task, func, metadata, *args, **kwargs):
+    try:
+        return func(*args, **kwargs)
+    except Exception as exc:
+        retry_kwargs = (metadata or {}).get('retry_kwargs', {})
+        raise task.retry(exc=exc, **retry_kwargs)
 
 
 class CeleryExecutorFuture(Future):
@@ -60,6 +64,7 @@ class CeleryExecutor(Executor):
                     predelay=None,
                     postdelay=None,
                     applyasync_kwargs=None,
+                    retry_kwargs=None,
                     update_delay=0.1,
                 ):
         """
@@ -75,6 +80,7 @@ class CeleryExecutor(Executor):
         self._predelay = predelay
         self._postdelay = postdelay
         self._applyasync_kwargs = applyasync_kwargs or {}
+        self._retry_kwargs = retry_kwargs or {'max_retries': 0}
         self._update_delay = update_delay
         self._shutdown = False
         self._shutdown_lock = Lock()
@@ -134,10 +140,14 @@ class CeleryExecutor(Executor):
                 self._monitor.start()
                 self._monitor_started = True
 
+            metadata = {
+                'retry_kwargs': self._retry_kwargs.copy()
+            }
+
             if self._predelay:
                 self._predelay(fn, *args, **kwargs)
-            asyncresult = _celery_call.apply_async((fn,) + args, kwargs,
-                                                **self._applyasync_kwargs)
+            asyncresult = _celery_call.apply_async((fn, metadata) + args, kwargs,
+                                                   **self._applyasync_kwargs)
             if self._postdelay:
                 self._postdelay(asyncresult)
 
