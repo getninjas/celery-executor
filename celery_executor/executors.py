@@ -76,14 +76,19 @@ class CeleryExecutor(Executor):
             predelay: Will trigger before the `.apply_async` internal call
             postdelay: Will trigger before the `.apply_async` internal call
             applyasync_kwargs: Options passed to the `.apply_async()` call
+            retry_kwargs: Options passed to the `.retry()` call on errors
+            retry_queue: Sugar to set an alternative queue specially for errors
             update_delay: Delay time between checks for Future state changes
         """
+        # Options about calling the Task
         self._predelay = predelay
         self._postdelay = postdelay
         self._applyasync_kwargs = applyasync_kwargs or {}
         self._retry_kwargs = retry_kwargs or {'max_retries': 0}
         if retry_queue:
             self._retry_kwargs['queue'] = retry_queue
+
+        # Options about managing this Executor flow
         self._update_delay = update_delay
         self._shutdown = False
         self._shutdown_lock = Lock()
