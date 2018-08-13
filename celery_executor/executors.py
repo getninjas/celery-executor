@@ -84,9 +84,11 @@ class CeleryExecutor(Executor):
         self._predelay = predelay
         self._postdelay = postdelay
         self._applyasync_kwargs = applyasync_kwargs or {}
-        self._retry_kwargs = retry_kwargs or {'max_retries': 0}
+        self._retry_kwargs = retry_kwargs or {}
         if retry_queue:
             self._retry_kwargs['queue'] = retry_queue
+            self._retry_kwargs.setdefault('max_retries', 1)
+        self._retry_kwargs.setdefault('max_retries', 0)
 
         # Options about managing this Executor flow
         self._update_delay = update_delay
