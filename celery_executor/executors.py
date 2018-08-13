@@ -65,6 +65,7 @@ class CeleryExecutor(Executor):
                     postdelay=None,
                     applyasync_kwargs=None,
                     retry_kwargs=None,
+                    retry_queue='',
                     update_delay=0.1,
                 ):
         """
@@ -81,6 +82,8 @@ class CeleryExecutor(Executor):
         self._postdelay = postdelay
         self._applyasync_kwargs = applyasync_kwargs or {}
         self._retry_kwargs = retry_kwargs or {'max_retries': 0}
+        if retry_queue:
+            self._retry_kwargs['queue'] = retry_queue
         self._update_delay = update_delay
         self._shutdown = False
         self._shutdown_lock = Lock()
