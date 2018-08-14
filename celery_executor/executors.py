@@ -45,7 +45,7 @@ class CeleryExecutorFuture(Future):
             # Celery task should be REVOKED now. Otherwise may be not possible revoke it.
             if self._ar.state == 'REVOKED':
                 result = super(CeleryExecutorFuture, self).cancel()
-                assert result == True, 'Please open an issue on Github: Upstream implementation changed?'
+                assert result is True, 'Please open an issue on Github: Upstream implementation changed?'
             else:
                 # Is not running nor revoked nor finished :/
                 # The revoke() had not produced effect: Task is probable not on a worker, then not revoke-able.
@@ -53,7 +53,7 @@ class CeleryExecutorFuture(Future):
                 initial_state = self._state
                 self._state = RUNNING
                 result = super(CeleryExecutorFuture, self).cancel()
-                assert result == False, 'Please open an issue on Github: Upstream implementation changed?'
+                assert result is False, 'Please open an issue on Github: Upstream implementation changed?'
                 self._state = initial_state
 
             return result
@@ -61,13 +61,13 @@ class CeleryExecutorFuture(Future):
 
 class CeleryExecutor(Executor):
     def __init__(self,
-                    predelay=None,
-                    postdelay=None,
-                    applyasync_kwargs=None,
-                    retry_kwargs=None,
-                    retry_queue='',
-                    update_delay=0.1,
-                ):
+                 predelay=None,
+                 postdelay=None,
+                 applyasync_kwargs=None,
+                 retry_kwargs=None,
+                 retry_queue='',
+                 update_delay=0.1,
+                 ):
         """
         Executor implementation using a celery caller `_celery_call` wrapper
         around the submitted tasks.
@@ -113,7 +113,7 @@ class CeleryExecutor(Executor):
                     continue
 
                 ar = fut._ar
-                ar.ready()   # Just trigger the AsyncResult state update check
+                ar.ready()  # Just trigger the AsyncResult state update check
 
                 if ar.state == 'REVOKED':
                     logger.debug('Celery task "%s" canceled.', ar.id)
@@ -172,7 +172,7 @@ class CeleryExecutor(Executor):
                 fut.cancel()
 
         if wait:
-            for fut in as_completed(self._futures):
+            for _ in as_completed(self._futures):
                 pass
 
             self._monitor_stopping = True
@@ -193,6 +193,7 @@ class SyncExecutor(Executor):
 
     Based on a snippet from https://stackoverflow.com/a/10436851/798575
     """
+
     def __init__(self, lock=Lock):
         self._shutdown = False
         self._shutdown_lock = lock()
