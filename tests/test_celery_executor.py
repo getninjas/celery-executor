@@ -8,6 +8,7 @@ from pprint import pformat
 from concurrent.futures import ThreadPoolExecutor, TimeoutError, CancelledError
 
 import pytest
+from kombu import Queue
 
 if six.PY2:
     # Tests will work only with dill + pure-python pickle
@@ -43,6 +44,7 @@ def celery_config():
         'worker_lost_wait': 60,
         'worker_send_task_events': True,
         'task_acks_late': True,
+        'task_queues': [Queue('celery'), Queue('retry')],
     }
 
 
@@ -212,3 +214,25 @@ def _collect_state(future):
 
     state['_state'] = future._state
     return state
+
+
+def change_queue_function(call_type='regular'):
+    if call_type != 'retry':
+        raise RuntimeError()
+    return call_type
+
+
+def test_change_queue_on_exception(celery_session_worker):
+    test_retry_kwargs = {'kwargs': {'call_type': 'retry'}, 'countdown': 1}
+    with CeleryExecutor(retry_kwargs=test_retry_kwargs, retry_queue='retry') as executor:
+        future = executor.submit(change_queue_function)
+        result = future.result(timeout=3)
+        assert result == 'retry'
+
+
+def test_fail_change_queue_on_exception(celery_session_worker):
+    test_retry_kwargs = {'kwargs': {'call_type': 'fail'}, 'countdown': 1, 'max_retries': 3}
+    with CeleryExecutor(retry_kwargs=test_retry_kwargs, retry_queue='retry') as executor:
+        future = executor.submit(change_queue_function)
+        with pytest.raises(RuntimeError):
+            result = future.result(timeout=6)
