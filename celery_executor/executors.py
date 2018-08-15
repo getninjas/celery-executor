@@ -9,9 +9,13 @@ from celery import shared_task
 logger = logging.getLogger(__name__)
 
 
-@shared_task(serializer='pickle')
-def _celery_call(func, *args, **kwargs):
-    return func(*args, **kwargs)
+@shared_task(bind=True, serializer='pickle', track_started=True, retry_backoff=True)
+def _celery_call(task, func, metadata, *args, **kwargs):
+    try:
+        return func(*args, **kwargs)
+    except Exception as exc:
+        retry_kwargs = (metadata or {}).get('retry_kwargs', {})
+        raise task.retry(exc=exc, **retry_kwargs)
 
 
 class CeleryExecutorFuture(Future):
@@ -41,7 +45,7 @@ class CeleryExecutorFuture(Future):
             # Celery task should be REVOKED now. Otherwise may be not possible revoke it.
             if self._ar.state == 'REVOKED':
                 result = super(CeleryExecutorFuture, self).cancel()
-                assert result == True, 'Please open an issue on Github: Upstream implementation changed?'
+                assert result is True, 'Please open an issue on Github: Upstream implementation changed?'
             else:
                 # Is not running nor revoked nor finished :/
                 # The revoke() had not produced effect: Task is probable not on a worker, then not revoke-able.
@@ -49,19 +53,15 @@ class CeleryExecutorFuture(Future):
                 initial_state = self._state
                 self._state = RUNNING
                 result = super(CeleryExecutorFuture, self).cancel()
-                assert result == False, 'Please open an issue on Github: Upstream implementation changed?'
+                assert result is False, 'Please open an issue on Github: Upstream implementation changed?'
                 self._state = initial_state
 
             return result
 
 
 class CeleryExecutor(Executor):
-    def __init__(self,
-                    predelay=None,
-                    postdelay=None,
-                    applyasync_kwargs=None,
-                    update_delay=0.1,
-                ):
+    def __init__(self, predelay=None, postdelay=None, applyasync_kwargs=None,
+                 retry_kwargs=None, retry_queue='', update_delay=0.1):
         """
         Executor implementation using a celery caller `_celery_call` wrapper
         around the submitted tasks.
@@ -70,11 +70,21 @@ class CeleryExecutor(Executor):
             predelay: Will trigger before the `.apply_async` internal call
             postdelay: Will trigger before the `.apply_async` internal call
             applyasync_kwargs: Options passed to the `.apply_async()` call
+            retry_kwargs: Options passed to the `.retry()` call on errors
+            retry_queue: Sugar to set an alternative queue specially for errors
             update_delay: Delay time between checks for Future state changes
         """
+        # Options about calling the Task
         self._predelay = predelay
         self._postdelay = postdelay
         self._applyasync_kwargs = applyasync_kwargs or {}
+        self._retry_kwargs = retry_kwargs or {}
+        if retry_queue:
+            self._retry_kwargs['queue'] = retry_queue
+            self._retry_kwargs.setdefault('max_retries', 1)
+        self._retry_kwargs.setdefault('max_retries', 0)
+
+        # Options about managing this Executor flow
         self._update_delay = update_delay
         self._shutdown = False
         self._shutdown_lock = Lock()
@@ -97,7 +107,7 @@ class CeleryExecutor(Executor):
                     continue
 
                 ar = fut._ar
-                ar.ready()   # Just trigger the AsyncResult state update check
+                ar.ready()  # Just trigger the AsyncResult state update check
 
                 if ar.state == 'REVOKED':
                     logger.debug('Celery task "%s" canceled.', ar.id)
@@ -134,10 +144,14 @@ class CeleryExecutor(Executor):
                 self._monitor.start()
                 self._monitor_started = True
 
+            metadata = {
+                'retry_kwargs': self._retry_kwargs.copy()
+            }
+
             if self._predelay:
                 self._predelay(fn, *args, **kwargs)
-            asyncresult = _celery_call.apply_async((fn,) + args, kwargs,
-                                                **self._applyasync_kwargs)
+            asyncresult = _celery_call.apply_async((fn, metadata) + args, kwargs,
+                                                   **self._applyasync_kwargs)
             if self._postdelay:
                 self._postdelay(asyncresult)
 
@@ -152,7 +166,7 @@ class CeleryExecutor(Executor):
                 fut.cancel()
 
         if wait:
-            for fut in as_completed(self._futures):
+            for _ in as_completed(self._futures):
                 pass
 
             self._monitor_stopping = True
@@ -173,6 +187,7 @@ class SyncExecutor(Executor):
 
     Based on a snippet from https://stackoverflow.com/a/10436851/798575
     """
+
     def __init__(self, lock=Lock):
         self._shutdown = False
         self._shutdown_lock = lock()
