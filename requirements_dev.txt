@@ -1,4 +1,4 @@
-celery==4.2.1
+celery==4.3.0
 
 setuptools>=38.6.0
 pip==18.0
